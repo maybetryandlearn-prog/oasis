@@ -82,6 +82,8 @@ class SocialAgent(ChatAgent):
             content=system_message_content,  # system prompt
         )
 
+        self._include_group_env = ActionType.includes_group_chat_in_env(
+            available_actions)
         if not available_actions:
             agent_log.info("No available actions defined, using all actions.")
             self.action_tools = self.env.action.get_openai_function_list()
@@ -124,7 +126,8 @@ class SocialAgent(ChatAgent):
 
     async def perform_action_by_llm(self):
         # Get posts:
-        env_prompt = await self.env.to_text_prompt()
+        env_prompt = await self.env.to_text_prompt(
+            include_groups=self._include_group_env)
         user_msg = BaseMessage.make_user_message(
             role_name="User",
             content=(
