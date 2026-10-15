@@ -120,16 +120,19 @@ class SocialEnvironment(Environment):
         include_posts: bool = True,
         include_followers: bool = True,
         include_follows: bool = True,
+        include_groups: bool = True,
     ) -> str:
         followers_env = (await self.get_followers_env()
                          if include_follows else "No followers.")
         follows_env = (await self.get_follows_env()
                        if include_followers else "No follows.")
         posts_env = await self.get_posts_env() if include_posts else ""
+        groups_env = (await self.get_group_env()
+                      if include_groups else "")
 
         return self.env_template.substitute(
             followers_env=followers_env,
             follows_env=follows_env,
             posts_env=posts_env,
-            groups_env=await self.get_group_env(),
+            groups_env=groups_env,
         )

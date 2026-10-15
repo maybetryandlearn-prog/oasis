@@ -48,6 +48,27 @@ class ActionType(Enum):
     CREATE_GROUP = "create_group"
     LISTEN_FROM_GROUP = "listen_from_group"
 
+    _GROUP_CHAT_ACTIONS = frozenset({
+        JOIN_GROUP,
+        LEAVE_GROUP,
+        SEND_TO_GROUP,
+        CREATE_GROUP,
+        LISTEN_FROM_GROUP,
+    })
+
+    @classmethod
+    def includes_group_chat_in_env(
+            cls, available_actions: list | None) -> bool:
+        if available_actions is None:
+            return True
+        for action in available_actions:
+            if isinstance(action, cls):
+                if action in cls._GROUP_CHAT_ACTIONS:
+                    return True
+            elif action in {a.value for a in cls._GROUP_CHAT_ACTIONS}:
+                return True
+        return False
+
     @classmethod
     def get_default_twitter_actions(cls):
         return [
