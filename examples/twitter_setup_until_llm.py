@@ -12,6 +12,7 @@ PNG of the selected follow graph into ``./artifacts/twitter_setup``.
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
 import csv
 import json
@@ -20,6 +21,7 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pandas as pd
 from camel.models import ModelFactory
 from camel.types import ModelPlatformType
 from oasis.clock.clock import Clock
@@ -123,6 +125,44 @@ def build_oasis_profile_csv(
                 }
             )
     return len(selected), sum(map(len, following.values()))
+
+
+def validate_agent_graph(agent_graph, profile_csv: Path, author_id: int) -> None:
+    """Fail loudly if OASIS dropped any profile-defined follow edges."""
+    profile = pd.read_csv(profile_csv)
+    expected = {
+        (agent_id, followee_id)
+        for agent_id, value in enumerate(profile["following_agentid_list"])
+        for followee_id in ast.literal_eval(value)
+    }
+    actual = set(agent_graph.graph.get_edgelist())
+    missing = expected - actual
+    unexpected = actual - expected
+
+    if missing or unexpected:
+        def names(edges):
+            return [
+                f"{profile.iloc[source]['username']} -> "
+                f"{profile.iloc[target]['username']}"
+                for source, target in sorted(edges)
+            ]
+
+        expected_followers = {
+            source for source, target in expected if target == author_id
+        }
+        actual_followers = {
+            source for source, target in actual if target == author_id
+        }
+        raise RuntimeError(
+            "OASIS AgentGraph edge mismatch.\n"
+            f"Expected: {len(expected)}; actual: {len(actual)}.\n"
+            f"Missing: {names(missing)}\n"
+            f"Unexpected: {names(unexpected)}\n"
+            "Expected direct followers of author: "
+            f"{[profile.iloc[i]['username'] for i in sorted(expected_followers)]}\n"
+            "Actual direct followers of author: "
+            f"{[profile.iloc[i]['username'] for i in sorted(actual_followers)]}"
+        )
 
 
 def visualize_propagation_bfs(
@@ -233,6 +273,7 @@ async def prepare(args: argparse.Namespace) -> None:
         if author not in usernames:
             raise ValueError("post_author_username must be in usernames")
         author_id = usernames.index(author)
+        validate_agent_graph(agent_graph, profile_csv, author_id)
         visualize_propagation_bfs(agent_graph, author_id, graph_png)
         platform.db.execute(
             "INSERT INTO post (user_id, content, created_at, num_likes, num_dislikes) "
