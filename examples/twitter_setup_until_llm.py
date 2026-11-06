@@ -282,12 +282,6 @@ async def prepare(args: argparse.Namespace) -> None:
         author_id = usernames.index(author)
         validate_agent_graph(agent_graph, profile_csv, author_id)
         visualize_propagation_bfs(agent_graph, author_id, graph_png)
-        platform.db.execute(
-            "INSERT INTO post (user_id, content, created_at, num_likes, num_dislikes) "
-            "VALUES (?, ?, ?, 0, 0)",
-            (author_id, config["propagation_post"], 0),
-        )
-        platform.db.commit()
     finally:
         platform.db_cursor.close()
         platform.db.close()
