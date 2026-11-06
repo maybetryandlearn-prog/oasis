@@ -1,0 +1,12 @@
+{
+  "usernames": ["username1", "username2"],
+  "descriptions_json": "../data/accountsummeries.json",
+  "propagation_post": "sample",
+  "post_author_username": "username1",
+  "model": {
+    "platform": "openai",
+    "model_name": "gpt-4o-mini",
+    "endpoint": "https://api.openai.com/v1",
+    "api_key": "PUT-YOUR-API-KEY-HERE"
+  }
+}

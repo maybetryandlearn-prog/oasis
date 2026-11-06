@@ -98,4 +98,9 @@ models/
 *.sqlite3
 *.sqlite
 
+# Local OASIS Twitter experiment inputs and credentials
+examples/twitter_setup_config.json
+
 tmp
+
+examples/artifacts/*
