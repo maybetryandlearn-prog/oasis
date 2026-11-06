@@ -198,12 +198,25 @@ class AgentGraph:
 
     def add_agent(self, agent: SocialAgent):
         if self.backend == "igraph":
+            # Agent IDs are sequential indices managed by AgentGraph. Add one
+            # vertex explicitly; the vertex index then matches social_agent_id.
             self.graph.add_vertex(agent.social_agent_id)
         else:
             self.graph.create_agent(agent.social_agent_id)
         self.agent_mappings[agent.social_agent_id] = agent
 
     def add_edge(self, agent_id_0: int, agent_id_1: int):
+        if self.backend == "igraph":
+            vertex_count = self.graph.vcount()
+            if not (0 <= agent_id_0 < vertex_count
+                    and 0 <= agent_id_1 < vertex_count):
+                raise ValueError(
+                    "Invalid AgentGraph edge: "
+                    f"{agent_id_0} -> {agent_id_1}; "
+                    f"igraph has {vertex_count} vertices. "
+                    "following_agentid_list must contain zero-based OASIS "
+                    "agent IDs, not original Twitter user IDs."
+                )
         self.graph.add_edge(agent_id_0, agent_id_1)
 
     def remove_agent(self, agent: SocialAgent):

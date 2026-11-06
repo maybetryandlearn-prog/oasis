@@ -125,13 +125,17 @@ async def generate_agents(
                     follow_list.append((agent_id, follow_id, start_time))
                     user_update1.append((agent_id, ))
                     user_update2.append((follow_id, ))
-                    agent_graph.add_edge(agent_id, follow_id)
 
         previous_posts = ast.literal_eval(
             agent_info["previous_tweets"][agent_id])
         if len(previous_posts) != 0:
             for post in previous_posts:
                 post_list.append((agent_id, post, start_time, 0, 0))
+
+    # All vertices must exist before igraph edges are added. Adding edges in
+    # the loop above fails when an agent follows a later agent in the CSV.
+    for follower_id, followee_id, _ in follow_list:
+        agent_graph.add_edge(follower_id, followee_id)
 
     # generate_log.info('agent gegenerate finished.')
 

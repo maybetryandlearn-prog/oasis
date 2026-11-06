@@ -29,12 +29,14 @@ from oasis.social_agent.agents_generator import generate_agents
 from oasis.social_platform.channel import Channel
 from oasis.social_platform.platform import Platform
 import igraph as ig
+import shutil
 
 
 DEFAULT_USERS_CSV = Path("../../data/users.csv")
 DEFAULT_EDGES_CSV = Path("../../data/edges_usernames.csv")
 DEFAULT_OUTPUT_DIR = Path("./artifacts/twitter_setup")
 DEFAULT_CONFIG = Path("./twitter_setup_config.json")
+shutil.rmtree("./artifacts", ignore_errors=True)
 
 
 def load_config(path: Path) -> dict:
@@ -105,8 +107,13 @@ def build_oasis_profile_csv(
     # Match OASIS's bundled CSV schema. The generator reads by column name,
     # but this makes the adapter easier to compare with OASIS examples.
     fieldnames = [
-        "user_id", "name", "username", "following_agentid_list",
-        "previous_tweets", "user_char", "description",
+        "user_id",
+        "name",
+        "username",
+        "following_agentid_list",
+        "previous_tweets",
+        "user_char",
+        "description",
     ]
     with output_csv.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -140,6 +147,7 @@ def validate_agent_graph(agent_graph, profile_csv: Path, author_id: int) -> None
     unexpected = actual - expected
 
     if missing or unexpected:
+
         def names(edges):
             return [
                 f"{profile.iloc[source]['username']} -> "
@@ -150,9 +158,7 @@ def validate_agent_graph(agent_graph, profile_csv: Path, author_id: int) -> None
         expected_followers = {
             source for source, target in expected if target == author_id
         }
-        actual_followers = {
-            source for source, target in actual if target == author_id
-        }
+        actual_followers = {source for source, target in actual if target == author_id}
         raise RuntimeError(
             "OASIS AgentGraph edge mismatch.\n"
             f"Expected: {len(expected)}; actual: {len(actual)}.\n"
@@ -202,10 +208,12 @@ def visualize_propagation_bfs(
     cross_edges = sorted(all_edges - tree_edge_set)
     drawing_edges = tree_edges + cross_edges
     subgraph = graph.__class__(n=len(reachable), directed=True)
-    subgraph.add_edges([
-        (old_to_new[parent], old_to_new[follower])
-        for parent, follower in drawing_edges
-    ])
+    subgraph.add_edges(
+        [
+            (old_to_new[parent], old_to_new[follower])
+            for parent, follower in drawing_edges
+        ]
+    )
     labels = [agent_graph.get_agent(old).user_info.name for old in reachable]
     levels: dict[int, list[int]] = {}
     for old, new in old_to_new.items():
@@ -225,8 +233,7 @@ def visualize_propagation_bfs(
         vertex_label=labels,
         vertex_label_dist=2.0,
         vertex_label_angle=-math.pi / 2,
-        edge_color=["#555555"] * len(tree_edges)
-        + ["#4c78a8"] * len(cross_edges),
+        edge_color=["#555555"] * len(tree_edges) + ["#4c78a8"] * len(cross_edges),
         vertex_size=28,
         vertex_color="#f74f1b",
         vertex_frame_width=2,
