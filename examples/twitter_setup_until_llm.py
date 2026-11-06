@@ -15,6 +15,8 @@ import argparse
 import asyncio
 import csv
 import json
+import math
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,6 +26,7 @@ from oasis.clock.clock import Clock
 from oasis.social_agent.agents_generator import generate_agents
 from oasis.social_platform.channel import Channel
 from oasis.social_platform.platform import Platform
+import igraph as ig
 
 
 DEFAULT_USERS_CSV = Path("../../data/users.csv")
@@ -97,13 +100,11 @@ def build_oasis_profile_csv(
             following[row[0]].append(index[row[1]])
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
+    # Match OASIS's bundled CSV schema. The generator reads by column name,
+    # but this makes the adapter easier to compare with OASIS examples.
     fieldnames = [
-        "username",
-        "name",
-        "description",
-        "user_char",
-        "following_agentid_list",
-        "previous_tweets",
+        "user_id", "name", "username", "following_agentid_list",
+        "previous_tweets", "user_char", "description",
     ]
     with output_csv.open("w", newline="", encoding="utf-8") as file:
         writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -112,15 +113,87 @@ def build_oasis_profile_csv(
             user = users[username]
             writer.writerow(
                 {
-                    "username": username,
+                    "user_id": user.get("user_id", ""),
                     "name": user.get("name") or username,
-                    "description": descriptions[username],
-                    "user_char": descriptions[username],
+                    "username": username,
                     "following_agentid_list": repr(following[username]),
                     "previous_tweets": repr([]),
+                    "user_char": descriptions[username],
+                    "description": user.get("description", ""),
                 }
             )
     return len(selected), sum(map(len, following.values()))
+
+
+def visualize_propagation_bfs(
+    agent_graph, root_agent_id: int, output_path: Path
+) -> None:
+    """Save a username-labelled BFS tree rooted at the propagation author.
+
+    OASIS stores ``follower -> followee`` edges. Therefore incoming graph
+    neighbors are the accounts that can receive a post from the current node.
+    """
+    graph = agent_graph.graph
+    distances = {root_agent_id: 0}
+    tree_edges: list[tuple[int, int]] = []
+    queue = deque([root_agent_id])
+    while queue:
+        node = queue.popleft()
+        for follower in graph.neighbors(node, mode="in"):
+            if follower not in distances:
+                distances[follower] = distances[node] + 1
+                # Reverse the stored follower -> followee edge so the image
+                # shows information flowing author -> follower.
+                tree_edges.append((node, follower))
+                queue.append(follower)
+
+    reachable = sorted(distances)
+    if not reachable:
+        raise ValueError("Propagation author is not present in the agent graph")
+    old_to_new = {old: new for new, old in enumerate(reachable)}
+    tree_edge_set = set(tree_edges)
+    # Include all relationships among reachable nodes. The stored edge is
+    # follower -> followee, so reverse it for propagation-oriented drawing.
+    all_edges = {
+        (edge.target, edge.source)
+        for edge in graph.es
+        if edge.source in old_to_new and edge.target in old_to_new
+    }
+    cross_edges = sorted(all_edges - tree_edge_set)
+    drawing_edges = tree_edges + cross_edges
+    subgraph = graph.__class__(n=len(reachable), directed=True)
+    subgraph.add_edges([
+        (old_to_new[parent], old_to_new[follower])
+        for parent, follower in drawing_edges
+    ])
+    labels = [agent_graph.get_agent(old).user_info.name for old in reachable]
+    levels: dict[int, list[int]] = {}
+    for old, new in old_to_new.items():
+        levels.setdefault(distances[old], []).append(new)
+
+    # A deterministic layered layout makes the BFS distance visually clear.
+    coords = [(0.0, 0.0)] * len(reachable)
+    for level, nodes in levels.items():
+        for index, vertex_id in enumerate(nodes):
+            coords[vertex_id] = (float(level), -(index - (len(nodes) - 1) / 2))
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    ig.plot(
+        subgraph,
+        target=str(output_path),
+        layout=coords,
+        vertex_label=labels,
+        vertex_label_dist=2.0,
+        vertex_label_angle=-math.pi / 2,
+        edge_color=["#555555"] * len(tree_edges)
+        + ["#4c78a8"] * len(cross_edges),
+        vertex_size=28,
+        vertex_color="#f74f1b",
+        vertex_frame_width=2,
+        edge_arrow_size=0.5,
+        bbox=(1800, max(900, 220 * max(levels) + 300)),
+        margin=100,
+    )
 
 
 async def prepare(args: argparse.Namespace) -> None:
@@ -156,12 +229,11 @@ async def prepare(args: argparse.Namespace) -> None:
             recsys_type="twitter",
             twitter=platform,
         )
-        agent_graph.visualize(str(graph_png), with_labels=True)
-
         author = config.get("post_author_username") or usernames[0]
         if author not in usernames:
             raise ValueError("post_author_username must be in usernames")
         author_id = usernames.index(author)
+        visualize_propagation_bfs(agent_graph, author_id, graph_png)
         platform.db.execute(
             "INSERT INTO post (user_id, content, created_at, num_likes, num_dislikes) "
             "VALUES (?, ?, ?, 0, 0)",
