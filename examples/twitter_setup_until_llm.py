@@ -36,7 +36,6 @@ DEFAULT_USERS_CSV = Path("../../data/users.csv")
 DEFAULT_EDGES_CSV = Path("../../data/edges_usernames.csv")
 DEFAULT_OUTPUT_DIR = Path("./artifacts/twitter_setup")
 DEFAULT_CONFIG = Path("./twitter_setup_config.json")
-shutil.rmtree("./artifacts", ignore_errors=True)
 
 
 def load_config(path: Path) -> dict:
@@ -319,4 +318,5 @@ def parse_args() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    shutil.rmtree("./artifacts", ignore_errors=True)
     asyncio.run(prepare(parse_args()))
