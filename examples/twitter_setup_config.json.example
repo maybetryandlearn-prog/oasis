@@ -8,5 +8,8 @@
     "model_name": "gpt-4o-mini",
     "endpoint": "https://api.openai.com/v1",
     "api_key": "PUT-YOUR-API-KEY-HERE"
+  },
+  "cost_guard": {
+    "max_cost_usd": 0.50
   }
 }
